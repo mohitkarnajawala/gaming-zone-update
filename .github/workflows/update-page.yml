@@ -14,12 +14,16 @@ jobs:
       - name: Extract release info
         run: |
           echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
-          echo "APK_URL=${{ github.event.release.assets[0].browser_download_url }}" >> $GITHUB_ENV
+          echo "APK_URL=$(echo ${{ github.event.release.assets[0].browser_download_url }})" >> $GITHUB_ENV
+          echo "NOTES='${{ github.event.release.body }}'" >> $GITHUB_ENV
 
       - name: Update index.html
         run: |
           sed -i "s/{{VERSION}}/${VERSION}/g" index.html
           sed -i "s|{{APK_URL}}|${APK_URL}|g" index.html
+          # Convert release notes into <li> items
+          FORMATTED=$(echo "$NOTES" | sed 's/^/<li>/;s/$/<\/li>/' | sed ':a;N;$!ba;s/\n/<\/li>\n<li>/g')
+          sed -i "s|{{CHANGELOG}}|$FORMATTED|g" index.html
 
       - name: Commit changes
         run: |
