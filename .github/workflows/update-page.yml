@@ -1,0 +1,63 @@
+name: Update Landing Page
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write   # allow pushing to gh-pages
+
+jobs:
+  update-page:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Extract release info
+        run: |
+          echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          echo "APK_URL=${{ github.event.release.assets[0].browser_download_url }}" >> $GITHUB_ENV
+          echo "${{ github.event.release.body }}" > release_notes.txt
+
+      - name: Update index.html safely
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          let html = fs.readFileSync('index.html', 'utf8');
+
+          const version = process.env.VERSION;
+          const notes = fs.readFileSync('release_notes.txt', 'utf8');
+
+          // Format release notes into <li> items
+          const formatted = notes
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map(line => `<li>${line}</li>`)
+            .join('\n');
+
+          // Replace placeholders
+          html = html.replace('{{VERSION}}', version);
+          html = html.replace('{{APK_URL}}', `Gaming-Zone-${version}.apk`);
+          html = html.replace('{{CHANGELOG}}', formatted);
+
+          fs.writeFileSync('index.html', html);
+          EOF
+
+      - name: Download APK from release
+        run: |
+          curl -L "${APK_URL}" -o "Gaming-Zone-${VERSION}.apk"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
+          force_orphan: true
